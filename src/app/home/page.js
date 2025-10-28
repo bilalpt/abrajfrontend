@@ -25,7 +25,7 @@ const Homepage = () => {
   const router = useRouter();
   const [selectedRooms, setSelectedRooms] = useState([]);
   const [bookedRooms, setBookedRooms] = useState([]);
-  const [allBookings, setAllBookings] = useState([]); // ✅ store all bookings for validation
+  const [allBookings, setAllBookings] = useState([]);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -35,10 +35,13 @@ const Homepage = () => {
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
 
+  // ✅ Base API URL (LIVE)
+  const BASE_URL = "https://abrajbackend.onrender.com";
+
   // ✅ Fetch bookings
   const fetchBookedRooms = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/bookings/");
+      const res = await fetch(`${BASE_URL}/api/bookings/`);
       const data = await res.json();
       setAllBookings(data);
 
@@ -93,15 +96,13 @@ const Homepage = () => {
         .split(",")
         .map((r) => r.trim());
 
-      // ✅ check if any selected room is already booked in overlapping period
-      const isOverlap =
-        newStart <= bookedEnd && newEnd >= bookedStart; // overlapping date range
+      const isOverlap = newStart <= bookedEnd && newEnd >= bookedStart;
       const hasSameRoom = selectedRooms.some((r) =>
         bookedRoomList.includes(String(r))
       );
 
       if (isOverlap && hasSameRoom) {
-        return booking; // return conflict booking
+        return booking;
       }
     }
 
@@ -128,7 +129,7 @@ const Homepage = () => {
     };
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/bookings/", {
+      const res = await fetch(`${BASE_URL}/api/bookings/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),

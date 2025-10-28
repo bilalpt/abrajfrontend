@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
+const API_BASE = "https://abrajbackend.onrender.com";
+
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
   const router = useRouter();
@@ -15,7 +17,7 @@ const Bookings = () => {
 
   const fetchBookings = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/bookings/");
+      const res = await fetch(`${API_BASE}/api/bookings/`);
       const data = await res.json();
 
       // Sort bookings by check-in date (newest first)
@@ -177,7 +179,7 @@ const PaginatedTable = ({ bookings, fetchBookings }) => {
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this booking?")) return;
     try {
-      await fetch(`http://127.0.0.1:8000/api/bookings/${id}/`, {
+      await fetch(`${API_BASE}/api/bookings/${id}/`, {
         method: "DELETE",
       });
       alert("Booking deleted successfully");
