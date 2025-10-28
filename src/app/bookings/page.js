@@ -18,6 +18,8 @@ const Bookings = () => {
   const fetchBookings = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/bookings/`);
+      console.log(res,'server response');
+      
       const data = await res.json();
 
       // Sort bookings by check-in date (newest first)

@@ -43,6 +43,8 @@ const Homepage = () => {
     try {
       const res = await fetch(`${BASE_URL}/api/bookings/`);
       const data = await res.json();
+      console.log(data,'response data');
+      
       setAllBookings(data);
 
       const today = new Date().toISOString().split("T")[0];
@@ -134,6 +136,8 @@ const Homepage = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),
       });
+      console.log(res,'data sending');
+      
 
       if (res.ok) {
         setMessage("✅ Booking successful!");
