@@ -18,45 +18,54 @@ const Bookings = () => {
   const fetchBookings = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/bookings/`);
-      console.log(res,'server response');
-      
       const data = await res.json();
-
-      // Sort bookings by check-in date (newest first)
-      const sorted = data.sort(
-        (a, b) => new Date(b.check_in_date) - new Date(a.check_in_date)
-      );
+      // Sort latest first (highest ID = most recent)
+      const sorted = data.sort((a, b) => b.id - a.id);
       setBookings(sorted);
     } catch (error) {
       console.error("Error fetching bookings:", error);
     }
   };
 
-  // ✅ Get today's date in YYYY-MM-DD
+  // Get today's date in YYYY-MM-DD
   const today = new Date().toISOString().split("T")[0];
 
+  // Normalize date format
   const normalize = (dateStr) => {
     if (!dateStr) return "";
     return new Date(dateStr).toISOString().split("T")[0];
   };
 
-  const todayBookings = bookings.filter(
-    (b) => normalize(b.check_in_date) === today
-  );
-  const previousBookings = bookings.filter(
-    (b) => normalize(b.check_in_date) < today
-  );
-  const upcomingBookings = bookings.filter(
-    (b) => normalize(b.check_in_date) > today
-  );
+  // Convert 24h time to 12h format
+  const formatTime12h = (timeStr) => {
+    if (!timeStr) return "-";
+    const [hour, minute] = timeStr.split(":");
+    let h = parseInt(hour, 10);
+    const suffix = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${minute} ${suffix}`;
+  };
 
-  // ✅ Calculate total amount for today's bookings
+  // Separate bookings
+  const todayBookings = bookings
+    .filter((b) => normalize(b.check_in_date) === today)
+    .sort((a, b) => b.id - a.id);
+
+  const previousBookings = bookings
+    .filter((b) => normalize(b.check_in_date) < today)
+    .sort((a, b) => b.id - a.id);
+
+  const upcomingBookings = bookings
+    .filter((b) => normalize(b.check_in_date) > today)
+    .sort((a, b) => b.id - a.id);
+
+  // Total amount for today's bookings
   const totalAmountToday = todayBookings.reduce(
     (sum, b) => sum + parseFloat(b.amount || 0),
     0
   );
 
-  // ✅ PDF Download Function
+  // PDF download for today's bookings
   const downloadPDF = () => {
     const doc = new jsPDF();
     doc.text(`Today's Bookings Report (${today})`, 14, 15);
@@ -67,12 +76,23 @@ const Bookings = () => {
       b.phone_number,
       b.selected_rooms,
       b.check_in_date,
+      formatTime12h(b.check_in_time),
       b.check_out_date,
       `₹${b.amount}`,
     ]);
 
     doc.autoTable({
-      head: [["Name", "Phone", "Rooms", "Check-In", "Check-Out", "Amount"]],
+      head: [
+        [
+          "Name",
+          "Phone",
+          "Rooms",
+          "Check-In Date",
+          "Check-In Time",
+          "Check-Out",
+          "Amount",
+        ],
+      ],
       body: tableData,
       startY: 35,
     });
@@ -93,7 +113,19 @@ const Bookings = () => {
         </button>
       </div>
 
-      {/* ===== Today's Bookings ===== */}
+      {/* Upcoming Bookings */}
+      <Section title="🚀 Upcoming Bookings" color="text-blue-700">
+        {upcomingBookings.length > 0 ? (
+          <PaginatedTable
+            bookings={upcomingBookings}
+            fetchBookings={fetchBookings}
+          />
+        ) : (
+          <NoData text="No upcoming bookings" />
+        )}
+      </Section>
+
+      {/* Today's Bookings */}
       <Section
         title={`📅 Today's Bookings (${today})`}
         color="text-green-700"
@@ -118,19 +150,7 @@ const Bookings = () => {
         )}
       </Section>
 
-      {/* ===== Upcoming Bookings ===== */}
-      <Section title="🚀 Upcoming Bookings" color="text-blue-700">
-        {upcomingBookings.length > 0 ? (
-          <PaginatedTable
-            bookings={upcomingBookings}
-            fetchBookings={fetchBookings}
-          />
-        ) : (
-          <NoData text="No upcoming bookings" />
-        )}
-      </Section>
-
-      {/* ===== Previous Bookings ===== */}
+      {/* Previous Bookings */}
       <Section title="🕒 Previous Bookings" color="text-gray-800">
         {previousBookings.length > 0 ? (
           <PaginatedTable
@@ -145,7 +165,7 @@ const Bookings = () => {
   );
 };
 
-// 🔹 Section Component
+// Section Wrapper
 const Section = ({ title, color, extra, children }) => (
   <div className="bg-white rounded-xl shadow-md p-6 mb-10 overflow-x-auto">
     <div className="flex justify-between items-center mb-4">
@@ -156,12 +176,12 @@ const Section = ({ title, color, extra, children }) => (
   </div>
 );
 
-// 🔹 No Data Component
+// No Data Display
 const NoData = ({ text }) => (
   <p className="text-center text-gray-500 italic">{text}</p>
 );
 
-// 🔹 Paginated Table with Edit/Delete
+// Table with Pagination
 const PaginatedTable = ({ bookings, fetchBookings }) => {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
@@ -169,21 +189,15 @@ const PaginatedTable = ({ bookings, fetchBookings }) => {
 
   const totalPages = Math.ceil(bookings.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentBookings = bookings.slice(
-    startIndex,
-    startIndex + itemsPerPage
-  );
+  const currentBookings = bookings.slice(startIndex, startIndex + itemsPerPage);
 
   const handlePrev = () => setCurrentPage((p) => Math.max(p - 1, 1));
   const handleNext = () => setCurrentPage((p) => Math.min(p + 1, totalPages));
 
-  // ✅ Delete Booking
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this booking?")) return;
     try {
-      await fetch(`${API_BASE}/api/bookings/${id}/`, {
-        method: "DELETE",
-      });
+      await fetch(`${API_BASE}/api/bookings/${id}/`, { method: "DELETE" });
       alert("Booking deleted successfully");
       fetchBookings();
     } catch (error) {
@@ -191,9 +205,22 @@ const PaginatedTable = ({ bookings, fetchBookings }) => {
     }
   };
 
-  // ✅ Edit Booking
+  // ✅ Only navigate if valid ID exists
   const handleEdit = (id) => {
-    router.push(`/edit-booking/${id}`);
+    if (id && Number.isInteger(id)) {
+      router.push(`/bookingeditpage/${id}`);
+    } else {
+      alert("Invalid booking ID — cannot open edit page.");
+    }
+  };
+
+  const formatTime12h = (timeStr) => {
+    if (!timeStr) return "-";
+    const [hour, minute] = timeStr.split(":");
+    let h = parseInt(hour, 10);
+    const suffix = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${minute} ${suffix}`;
   };
 
   return (
@@ -204,7 +231,8 @@ const PaginatedTable = ({ bookings, fetchBookings }) => {
             <th className="px-4 py-2">Name</th>
             <th className="px-4 py-2">Phone</th>
             <th className="px-4 py-2">Rooms</th>
-            <th className="px-4 py-2">Check-In</th>
+            <th className="px-4 py-2">Check-In Date</th>
+            <th className="px-4 py-2">Check-In Time</th>
             <th className="px-4 py-2">Check-Out</th>
             <th className="px-4 py-2">Amount</th>
             <th className="px-4 py-2 text-center">Actions</th>
@@ -217,6 +245,7 @@ const PaginatedTable = ({ bookings, fetchBookings }) => {
               <td className="px-4 py-2">{b.phone_number}</td>
               <td className="px-4 py-2">{b.selected_rooms}</td>
               <td className="px-4 py-2">{b.check_in_date}</td>
+              <td className="px-4 py-2">{formatTime12h(b.check_in_time)}</td>
               <td className="px-4 py-2">{b.check_out_date}</td>
               <td className="px-4 py-2 font-semibold text-green-700">
                 ₹{b.amount}

@@ -25,6 +25,7 @@ const Homepage = () => {
   const router = useRouter();
   const [selectedRooms, setSelectedRooms] = useState([]);
   const [bookedRooms, setBookedRooms] = useState([]);
+  const [bookedOnSearchDate, setBookedOnSearchDate] = useState([]);
   const [allBookings, setAllBookings] = useState([]);
 
   const [name, setName] = useState("");
@@ -35,22 +36,20 @@ const Homepage = () => {
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
 
-  // ✅ Base API URL (LIVE)
+  const [searchDate, setSearchDate] = useState("");
+
   const BASE_URL = "https://abrajbackend.onrender.com";
 
-  // ✅ Fetch bookings
   const fetchBookedRooms = async () => {
     try {
       const res = await fetch(`${BASE_URL}/api/bookings/`);
       const data = await res.json();
-      console.log(data,'response data');
-      
       setAllBookings(data);
 
       const today = new Date().toISOString().split("T")[0];
       const validBookings = data.filter(
         (b) =>
-          (b.check_in_date <= today && b.check_out_date >= today) ||
+          (b.check_in_date <= today && b.check_out_date > today) ||
           b.check_in_date === today
       );
 
@@ -83,25 +82,20 @@ const Homepage = () => {
     return sum;
   }, 0);
 
-  // ✅ Check for overlapping bookings
   const hasDateConflict = () => {
-    if (!checkInDate || !checkOutDate || selectedRooms.length === 0)
+    if (!checkInDate || !checkOutDate || selectedRooms.length === 0 || !checkInTime)
       return false;
 
-    const newStart = new Date(checkInDate);
-    const newEnd = new Date(checkOutDate);
+    const newStart = new Date(`${checkInDate}T${checkInTime}`);
+    const newEnd = new Date(`${checkOutDate}T${checkInTime}`);
 
     for (const booking of allBookings) {
-      const bookedStart = new Date(booking.check_in_date);
-      const bookedEnd = new Date(booking.check_out_date);
-      const bookedRoomList = booking.selected_rooms
-        .split(",")
-        .map((r) => r.trim());
+      const bookedStart = new Date(`${booking.check_in_date}T${booking.check_in_time}`);
+      const bookedEnd = new Date(`${booking.check_out_date}T${booking.check_in_time}`);
 
-      const isOverlap = newStart <= bookedEnd && newEnd >= bookedStart;
-      const hasSameRoom = selectedRooms.some((r) =>
-        bookedRoomList.includes(String(r))
-      );
+      const bookedRoomList = booking.selected_rooms.split(",").map((r) => r.trim());
+      const isOverlap = newStart < bookedEnd && newEnd > bookedStart;
+      const hasSameRoom = selectedRooms.some((r) => bookedRoomList.includes(String(r)));
 
       if (isOverlap && hasSameRoom) {
         return booking;
@@ -111,11 +105,39 @@ const Homepage = () => {
     return null;
   };
 
+  // New helper: ensure checkOutDate is same or after checkInDate
+  const isDateOrderValid = () => {
+    if (!checkInDate || !checkOutDate) return true; // can't validate yet
+    // Compare as ISO date strings (YYYY-MM-DD) — safe for date-only comparison
+    return checkOutDate >= checkInDate;
+  };
+
+  // Validate on input changes to show instant feedback
+  useEffect(() => {
+    if (checkInDate && checkOutDate) {
+      if (!isDateOrderValid()) {
+        setMessage("⚠️ Check-out date cannot be before check-in date.");
+      } else {
+        // If the only message was the date-order warning, clear it.
+        if (message === "⚠️ Check-out date cannot be before check-in date.") {
+          setMessage("");
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkInDate, checkOutDate]);
+
   const handleSubmit = async () => {
+    // prevent submission if date order invalid
+    if (!isDateOrderValid()) {
+      setMessage("⚠️ Check-out date cannot be before check-in date.");
+      return;
+    }
+
     const conflict = hasDateConflict();
     if (conflict) {
       setMessage(
-        `⚠️ Conflict detected! Room(s) already booked from ${conflict.check_in_date} to ${conflict.check_out_date}.`
+        `⚠️ Conflict detected! Room(s) already booked from ${conflict.check_in_date} ${conflict.check_in_time} to ${conflict.check_out_date} ${conflict.check_in_time}.`
       );
       return;
     }
@@ -136,8 +158,6 @@ const Homepage = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),
       });
-      console.log(res,'data sending');
-      
 
       if (res.ok) {
         setMessage("✅ Booking successful!");
@@ -158,29 +178,85 @@ const Homepage = () => {
     }
   };
 
+  // ✅ Updated vacancy search logic (checkout date = available)
+  const handleSearchVacancy = () => {
+    if (!searchDate) {
+      setMessage("⚠️ Please select a date to check vacancies.");
+      return;
+    }
+
+    // Treat check_out_date as the day the room becomes available
+    const bookedOnDate = allBookings.filter(
+      (b) => b.check_in_date <= searchDate && b.check_out_date > searchDate
+    );
+
+    const bookedRoomsSet = new Set(
+      bookedOnDate.flatMap((b) =>
+        b.selected_rooms.split(",").map((r) => r.trim())
+      )
+    );
+
+    setBookedOnSearchDate([...bookedRoomsSet].map(Number));
+    setMessage(`✅ Showing room availability on ${searchDate}.`);
+  };
+
+  // compute whether form is complete & valid
+  const isFormDisabled =
+    !name ||
+    !phone ||
+    selectedRooms.length === 0 ||
+    !checkInDate ||
+    !checkOutDate ||
+    !checkInTime ||
+    !amount ||
+    !isDateOrderValid();
+
   return (
     <div className="flex flex-col md:flex-row gap-8 p-6 bg-gray-50 min-h-screen">
       {/* LEFT SIDE */}
       <div className="flex-1 bg-white p-6 rounded-xl shadow-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">
+        <h2 className="text-2xl font-bold mb-4 text-center">
           Click on available rooms to reserve your bed
         </h2>
 
-        <div className="flex items-center mb-6">
-          <div className="w-10 h-10 bg-purple-500 text-white rounded-full flex items-center justify-center text-lg font-bold shadow-md">
-            🏢
+        {/* 🔍 Top Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-8 bg-gray-50 pt-10 p-4 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-500 text-white rounded-full flex items-center justify-center text-lg font-bold shadow-md">
+              🏢
+            </div>
+            <p className="font-semibold text-gray-600">Building</p>
           </div>
-          <p className="ml-3 font-semibold text-gray-600">Building</p>
+
           <p
             onClick={() => router.push("/bookings")}
-            className="ml-10 font-semibold text-gray-600 cursor-pointer hover:text-red-600"
+            className="font-semibold text-gray-600 cursor-pointer hover:text-red-600"
           >
             View Bookings
           </p>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={searchDate}
+              onChange={(e) => setSearchDate(e.target.value)}
+              className="border border-gray-300 rounded-md px-2 py-1 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <button
+              onClick={handleSearchVacancy}
+              className="bg-[#0f32be] text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-700"
+            >
+              Search
+            </button>
+          </div>
         </div>
 
+        {message && (
+          <p className="text-sm mt-2 text-center text-gray-700">{message}</p>
+        )}
+
         {/* FLOORS */}
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-8 mt-6">
           {Object.keys(roomsData).map((floor) => (
             <div key={floor}>
               <h3 className="font-semibold mb-3 text-lg text-gray-700">
@@ -188,23 +264,24 @@ const Homepage = () => {
               </h3>
               <div className="grid grid-cols-6 md:grid-cols-9 gap-4 place-items-center">
                 {Object.entries(roomsData[floor]).map(([room, beds]) => {
-                  const isSelected = selectedRooms.includes(Number(room));
-                  const isBooked = bookedRooms.includes(Number(room));
+                  const roomNum = Number(room);
+                  const isSelected = selectedRooms.includes(roomNum);
+                  const isBooked = searchDate
+                    ? bookedOnSearchDate.includes(roomNum)
+                    : bookedRooms.includes(roomNum);
+                  if (searchDate && isBooked) return null;
 
                   return (
                     <button
                       key={room}
-                      onClick={() =>
-                        !isBooked && toggleRoomSelection(Number(room))
-                      }
-                      disabled={isBooked}
-                      className={`w-12 h-12 rounded-lg border font-bold text-sm transition-all duration-200 flex flex-col items-center justify-center shadow-sm
+                      onClick={() => toggleRoomSelection(roomNum)}
+                      className={`w-12 h-12 rounded-lg border font-bold text-sm flex flex-col items-center justify-center transition-all duration-200 shadow-sm
                         ${
-                          isBooked
+                          isBooked && !isSelected
                             ? "bg-red-500 text-white cursor-not-allowed"
                             : isSelected
                             ? "bg-yellow-400 text-black border-gray-700 scale-105 shadow-md"
-                            : "bg-gray-200 text-black hover:bg-gray-300"
+                            : "bg-gray-200 text-black hover:bg-gray-300 cursor-pointer"
                         }`}
                     >
                       <span>{room}</span>
@@ -236,14 +313,13 @@ const Homepage = () => {
         </div>
       </div>
 
-      {/* RIGHT SIDE - FORM */}
+      {/* RIGHT SIDE FORM */}
       <div className="w-full md:w-1/3 bg-white p-6 rounded-xl shadow-md h-fit">
         <h3 className="text-xl font-semibold border-b pb-3 mb-4">
           Your Selection
         </h3>
 
         <div className="space-y-4">
-          {/* SELECTED ROOMS */}
           <div>
             <p className="text-gray-700 mb-2 font-medium">Selected Rooms:</p>
             {selectedRooms.length > 0 ? (
@@ -261,7 +337,6 @@ const Homepage = () => {
             )}
           </div>
 
-          {/* FORM FIELDS */}
           <div>
             <label className="text-gray-700 mb-2 font-medium block">Name:</label>
             <input
@@ -338,23 +413,9 @@ const Homepage = () => {
 
         <button
           onClick={handleSubmit}
-          disabled={
-            !name ||
-            !phone ||
-            selectedRooms.length === 0 ||
-            !checkInDate ||
-            !checkOutDate ||
-            !checkInTime ||
-            !amount
-          }
+          disabled={isFormDisabled}
           className={`mt-6 w-full py-3 font-semibold rounded-lg transition-colors ${
-            !name ||
-            !phone ||
-            selectedRooms.length === 0 ||
-            !checkInDate ||
-            !checkOutDate ||
-            !checkInTime ||
-            !amount
+            isFormDisabled
               ? "bg-gray-300 text-gray-600 cursor-not-allowed"
               : "bg-red-600 text-white hover:bg-red-700 cursor-pointer"
           }`}
