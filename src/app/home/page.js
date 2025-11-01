@@ -43,6 +43,8 @@ const Homepage = () => {
   const fetchBookedRooms = async () => {
     try {
       const res = await fetch(`${BASE_URL}/api/bookings/`);
+      console.log(res,'server response');
+      
       const data = await res.json();
       setAllBookings(data);
 

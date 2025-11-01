@@ -47,38 +47,49 @@ const Bookings = () => {
     }
   };
 
-  // ✅ Get today's date (YYYY-MM-DD)
-  const today = new Date().toISOString().split("T")[0];
+  // ✅ Helper to format time in 12-hour format (e.g., 2:00 PM)
+  const formatTime = (timeStr) => {
+    if (!timeStr) return "-";
+    const [hour, minute] = timeStr.split(":");
+    const h = parseInt(hour, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const adjustedHour = h % 12 || 12;
+    return `${adjustedHour}:${minute} ${ampm}`;
+  };
 
+  const today = new Date().toISOString().split("T")[0];
   const normalize = (dateStr) =>
     dateStr ? new Date(dateStr).toISOString().split("T")[0] : "";
-
   const normalizeDateTime = (datetimeStr) =>
     datetimeStr ? new Date(datetimeStr).toISOString().split("T")[0] : "";
 
-  // ✅ Include bookings with check_in_date or created_at = today
   const todayBookings = bookings.filter(
     (b) =>
       normalize(b.check_in_date) === today ||
       normalizeDateTime(b.created_at) === today
   );
-
-  // ✅ Separate future and past
   const upcomingBookings = bookings.filter(
     (b) => normalize(b.check_in_date) > today
   );
-
   const previousBookings = bookings.filter(
     (b) => normalize(b.check_in_date) < today
   );
 
-  // ✅ Calculate total for today's bookings
   const totalAmountToday = todayBookings.reduce(
     (sum, b) => sum + parseFloat(b.amount || 0),
     0
   );
+  const totalAmountUpcoming = upcomingBookings.reduce(
+    (sum, b) => sum + parseFloat(b.amount || 0),
+    0
+  );
+  const totalAmountPrevious = previousBookings.reduce(
+    (sum, b) => sum + parseFloat(b.amount || 0),
+    0
+  );
+  const grandTotal =
+    totalAmountToday + totalAmountUpcoming + totalAmountPrevious;
 
-  // ✅ Room details formatter
   const getRoomDetails = (roomString) => {
     if (!roomString) return "-";
     const rooms = roomString.toString().split(",").map((r) => r.trim());
@@ -96,12 +107,45 @@ const Bookings = () => {
 
   const handlePrint = () => window.print();
 
+  // ✅ Download All Amounts as PDF
+  const handleDownloadTotalPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("💰 Grand Total Summary", 14, 20);
+    autoTable(doc, {
+      head: [["Category", "Amount (₹)"]],
+      body: [
+        ["Today's Total", totalAmountToday.toFixed(2)],
+        ["Upcoming Total", totalAmountUpcoming.toFixed(2)],
+        ["Previous Total", totalAmountPrevious.toFixed(2)],
+        ["Grand Total", grandTotal.toFixed(2)],
+      ],
+    });
+    doc.save("Grand_Total_Summary.pdf");
+  };
+
+  const handlePrintTotal = () => {
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <html><head><title>Grand Total Summary</title></head><body>
+      <h2 style="text-align:center; color:#b91c1c;">💰 Grand Total Summary</h2>
+      <table border="1" cellspacing="0" cellpadding="8" style="width:100%; text-align:center; border-collapse:collapse;">
+        <tr><th>Category</th><th>Amount (₹)</th></tr>
+        <tr><td>Today's Total</td><td>${totalAmountToday.toFixed(2)}</td></tr>
+        <tr><td>Upcoming Total</td><td>${totalAmountUpcoming.toFixed(2)}</td></tr>
+        <tr><td>Previous Total</td><td>${totalAmountPrevious.toFixed(2)}</td></tr>
+        <tr><td><strong>Grand Total</strong></td><td><strong>${grandTotal.toFixed(2)}</strong></td></tr>
+      </table>
+      </body></html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6 flex-wrap">
         <h2 className="text-2xl font-bold text-gray-800">🧾 All Bookings</h2>
-
         <div className="flex flex-wrap gap-3">
           <button
             onClick={handlePrint}
@@ -118,7 +162,7 @@ const Bookings = () => {
         </div>
       </div>
 
-      {/* ✅ Today's Bookings Section */}
+      {/* ✅ Today's Bookings */}
       <Section
         title={`📅 Today's Bookings (${today}) — Total ₹${totalAmountToday.toFixed(
           2
@@ -130,6 +174,7 @@ const Bookings = () => {
             bookings={todayBookings}
             fetchBookings={fetchBookings}
             getRoomDetails={getRoomDetails}
+            formatTime={formatTime}
           />
         ) : (
           <NoData text="No bookings for today" />
@@ -143,6 +188,7 @@ const Bookings = () => {
             bookings={upcomingBookings}
             fetchBookings={fetchBookings}
             getRoomDetails={getRoomDetails}
+            formatTime={formatTime}
           />
         ) : (
           <NoData text="No upcoming bookings" />
@@ -156,11 +202,62 @@ const Bookings = () => {
             bookings={previousBookings}
             fetchBookings={fetchBookings}
             getRoomDetails={getRoomDetails}
+            formatTime={formatTime}
           />
         ) : (
           <NoData text="No previous bookings" />
         )}
       </Section>
+
+      {/* ✅ Grand Total Summary Section */}
+      <div className="bg-white shadow-md rounded-xl p-6 mt-10 text-gray-800">
+        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+          <h3 className="text-2xl font-semibold text-center text-red-700 flex-1">
+            💰 Grand Total Summary
+          </h3>
+          <div className="flex gap-3">
+            <button
+              onClick={handlePrintTotal}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
+            >
+              🖨️ Print
+            </button>
+            <button
+              onClick={handleDownloadTotalPDF}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+            >
+              ⬇️ Download PDF
+            </button>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+          <div className="bg-green-100 p-4 rounded-lg shadow-sm">
+            <h4 className="font-medium text-green-700">Today's Total</h4>
+            <p className="text-xl font-bold text-green-800">
+              ₹{totalAmountToday.toFixed(2)}
+            </p>
+          </div>
+          <div className="bg-blue-100 p-4 rounded-lg shadow-sm">
+            <h4 className="font-medium text-blue-700">Upcoming Total</h4>
+            <p className="text-xl font-bold text-blue-800">
+              ₹{totalAmountUpcoming.toFixed(2)}
+            </p>
+          </div>
+          <div className="bg-gray-100 p-4 rounded-lg shadow-sm">
+            <h4 className="font-medium text-gray-700">Previous Total</h4>
+            <p className="text-xl font-bold text-gray-800">
+              ₹{totalAmountPrevious.toFixed(2)}
+            </p>
+          </div>
+          <div className="bg-yellow-100 p-4 rounded-lg shadow-sm">
+            <h4 className="font-medium text-yellow-700">Grand Total</h4>
+            <p className="text-2xl font-bold text-yellow-800">
+              ₹{grandTotal.toFixed(2)}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -177,12 +274,16 @@ const NoData = ({ text }) => (
   <p className="text-center text-gray-500 italic">{text}</p>
 );
 
-// ✅ Paginated Table (your original preserved)
-const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
+// ✅ PaginatedTable with 12-hour format
+const PaginatedTable = ({
+  bookings,
+  fetchBookings,
+  getRoomDetails,
+  formatTime,
+}) => {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
   const totalPages = Math.ceil(bookings.length / itemsPerPage);
   const currentBookings = bookings.slice(
     (currentPage - 1) * itemsPerPage,
@@ -201,94 +302,6 @@ const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
     } catch (error) {
       console.error("Error deleting booking:", error);
     }
-  };
-
-  const handleEdit = (id) => router.push(`/bookingeditpage/${id}`);
-
-  const handlePrintBooking = (b) => {
-    const printWindow = window.open("", "_blank");
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Booking Receipt - ${b.name}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 40px; color: #333; background: #fff; }
-            .header { text-align: center; border-bottom: 3px solid #800000; padding-bottom: 10px; }
-            .header h1 { margin: 0; color: #800000; font-size: 22px; font-weight: bold; }
-            .header h2 { margin: 2px 0; font-size: 15px; color: #444; }
-            .details { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .details th, .details td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
-            .details th { background: #f8f8f8; width: 220px; color: #222; }
-            .amount { font-size: 18px; color: #006400; font-weight: bold; text-align: right; margin-top: 20px; }
-            .footer { margin-top: 40px; text-align: center; font-size: 14px; color: #555; line-height: 1.5; border-top: 2px solid #800000; padding-top: 10px; }
-            .print-btn { display: block; width: 160px; margin: 20px auto; background: #800000; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; }
-            @media print { .print-btn { display: none; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Sarh Al-Manamah Hotel No. (5)</h1>
-            <h2>Ajyad Al-Masafi, Near Zuwar Al Bait Hotel, Makkah</h2>
-            <h2>📞 0538035356 | ☎️ 012/5353600</h2>
-            <h2>✉️ sarhalmanama@gmail.com</h2>
-            <p>Date: ${new Date().toLocaleDateString()}</p>
-          </div>
-
-          <table class="details">
-            <tr><th>Guest Name</th><td>${b.name}</td></tr>
-            <tr><th>Phone Number</th><td>${b.phone_number}</td></tr>
-            <tr><th>Booked Rooms</th><td>${getRoomDetails(b.selected_rooms)}</td></tr>
-            <tr><th>Check-In Date</th><td>${b.check_in_date}</td></tr>
-            <tr><th>Check-In Time</th><td>${b.check_in_time}</td></tr>
-            <tr><th>Check-Out Date</th><td>${b.check_out_date}</td></tr>
-            <tr><th>Booking ID</th><td>#${b.id}</td></tr>
-          </table>
-
-          <div class="amount">Total Amount: ₹${b.amount}</div>
-
-          <button class="print-btn" onclick="window.print()">🖨️ Print Receipt</button>
-
-          <div class="footer">
-            <p>Thank you for choosing Sarh Al-Manamah Hotel.</p>
-            <p>We wish you a pleasant stay and safe journey.</p>
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
-  const handleDownloadBookingPDF = (b) => {
-    const doc = new jsPDF("p", "mm", "a4");
-
-    doc.setFontSize(20);
-    doc.setTextColor(128, 0, 0);
-    doc.text("Sarh Al-Manamah Hotel No. (5)", 105, 15, { align: "center" });
-
-    doc.setFontSize(12);
-    doc.text("Ajyad Al-Masafi, Near Zuwar Al Bait Hotel, Makkah", 105, 22, {
-      align: "center",
-    });
-    doc.text("📞 0538035356 | ☎️ 012/5353600", 105, 28, { align: "center" });
-    doc.text("✉️ sarhalmanama@gmail.com", 105, 34, { align: "center" });
-
-    autoTable(doc, {
-      startY: 60,
-      theme: "grid",
-      headStyles: { fillColor: [128, 0, 0] },
-      body: [
-        ["Guest Name", b.name],
-        ["Phone Number", b.phone_number],
-        ["Booked Rooms", getRoomDetails(b.selected_rooms)],
-        ["Check-In Date", b.check_in_date],
-        ["Check-In Time", b.check_in_time],
-        ["Check-Out Date", b.check_out_date],
-        ["Amount", `₹${b.amount}`],
-      ],
-    });
-
-    doc.save(`${b.name}_Booking.pdf`);
   };
 
   return (
@@ -313,7 +326,7 @@ const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
               <td className="px-4 py-2">{b.phone_number}</td>
               <td className="px-4 py-2">{getRoomDetails(b.selected_rooms)}</td>
               <td className="px-4 py-2">{b.check_in_date}</td>
-              <td className="px-4 py-2">{b.check_in_time}</td>
+              <td className="px-4 py-2">{formatTime(b.check_in_time)}</td>
               <td className="px-4 py-2">{b.check_out_date}</td>
               <td className="px-4 py-2 font-semibold text-green-700">
                 ₹{b.amount}
@@ -330,18 +343,6 @@ const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
                   className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                 >
                   Delete
-                </button>
-                <button
-                  onClick={() => handlePrintBooking(b)}
-                  className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600"
-                >
-                  🖨️ Print
-                </button>
-                <button
-                  onClick={() => handleDownloadBookingPDF(b)}
-                  className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-                >
-                  ⬇️ PDF
                 </button>
               </td>
             </tr>
