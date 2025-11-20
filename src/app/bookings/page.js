@@ -32,6 +32,12 @@ const Bookings = () => {
   const [bookings, setBookings] = useState([]);
   const router = useRouter();
 
+  // Global filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [roomFilter, setRoomFilter] = useState(""); // '' means All
+
   useEffect(() => {
     fetchBookings();
   }, []);
@@ -47,44 +53,14 @@ const Bookings = () => {
     }
   };
 
-  // ✅ Get today's date (YYYY-MM-DD)
-  const today = new Date().toISOString().split("T")[0];
-
+  // helper: normalize date string to YYYY-MM-DD (if falsy return "")
   const normalize = (dateStr) =>
     dateStr ? new Date(dateStr).toISOString().split("T")[0] : "";
 
   const normalizeDateTime = (datetimeStr) =>
     datetimeStr ? new Date(datetimeStr).toISOString().split("T")[0] : "";
 
-  // ✅ Include bookings with check_in_date or created_at = today
-  const todayBookings = bookings.filter(
-    (b) =>
-      normalize(b.check_in_date) === today ||
-      normalizeDateTime(b.created_at) === today
-  );
-
-  // ✅ Separate future and past
-  const upcomingBookings = bookings.filter(
-    (b) => normalize(b.check_in_date) > today
-  );
-
-  const previousBookings = bookings.filter(
-    (b) => normalize(b.check_in_date) < today
-  );
-
-  // ✅ Calculate total for today's bookings
-  const totalAmountToday = todayBookings.reduce(
-    (sum, b) => sum + parseFloat(b.amount || 0),
-    0
-  );
-
-  // ✅ Calculate Grand Total (all bookings)
-  const grandTotal = bookings.reduce(
-    (sum, b) => sum + parseFloat(b.amount || 0),
-    0
-  );
-
-  // ✅ Room details formatter
+  // Room details formatter
   const getRoomDetails = (roomString) => {
     if (!roomString) return "-";
     const rooms = roomString.toString().split(",").map((r) => r.trim());
@@ -92,17 +68,112 @@ const Bookings = () => {
       .map((r) => {
         const floor = r[0];
         const beds =
-          roomsData[floor] && roomsData[floor][r]
-            ? roomsData[floor][r]
-            : "?";
+          roomsData[floor] && roomsData[floor][r] ? roomsData[floor][r] : "?";
         return `${r} (${beds} beds)`;
       })
       .join(", ");
   };
 
+  // Build list of unique room numbers from all bookings (for dropdown)
+  const getAllRooms = () => {
+    const roomSet = new Set();
+    bookings.forEach((b) => {
+      if (!b.selected_rooms) return;
+      b.selected_rooms
+        .toString()
+        .split(",")
+        .map((r) => r.trim())
+        .forEach((r) => {
+          if (r) roomSet.add(r);
+        });
+    });
+    // return sorted array (numeric sort if possible)
+    return Array.from(roomSet).sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+  };
+
+  // ---------- Filtering logic (global) ----------
+  const applyFilters = () => {
+    const term = searchTerm.trim().toLowerCase();
+
+    return bookings.filter((b) => {
+      // If room filter selected: ensure selected_rooms (comma list) contains it
+      if (roomFilter) {
+        const roomsStr = (b.selected_rooms || "").toString().toLowerCase();
+        if (!roomsStr.split(",").map(r => r.trim()).includes(roomFilter.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // Date filter: check_in_date within from-to (inclusive)
+      const checkIn = normalize(b.check_in_date);
+      if (fromDate) {
+        if (!checkIn || checkIn < fromDate) return false;
+      }
+      if (toDate) {
+        if (!checkIn || checkIn > toDate) return false;
+      }
+
+      // Search term across multiple fields (name, phone, room string, amount, check_in_date)
+      if (!term) return true; // no search term, passed earlier filters already
+
+      const name = (b.name || "").toString().toLowerCase();
+      const phone = (b.phone_number || "").toString().toLowerCase();
+      const amount = (b.amount || "").toString().toLowerCase();
+      const selectedRooms = (b.selected_rooms || "").toString().toLowerCase();
+      const roomDetails = getRoomDetails(b.selected_rooms).toLowerCase();
+      const checkInDate = (b.check_in_date || "").toString().toLowerCase();
+      const checkOutDate = (b.check_out_date || "").toString().toLowerCase();
+
+      return (
+        name.includes(term) ||
+        phone.includes(term) ||
+        amount.includes(term) ||
+        selectedRooms.includes(term) ||
+        roomDetails.includes(term) ||
+        checkInDate.includes(term) ||
+        checkOutDate.includes(term)
+      );
+    });
+  };
+
+  const filteredBookings = applyFilters();
+
+  // Today's date for sections
+  const today = new Date().toISOString().split("T")[0];
+
+  // Split filtered bookings into sections
+  const todayBookings = filteredBookings.filter(
+    (b) =>
+      normalize(b.check_in_date) === today ||
+      normalizeDateTime(b.created_at) === today
+  );
+
+  const upcomingBookings = filteredBookings.filter(
+    (b) => normalize(b.check_in_date) > today
+  );
+
+  const previousBookings = filteredBookings.filter(
+    (b) => normalize(b.check_in_date) < today
+  );
+
+  // Totals
+  const totalAmountToday = todayBookings.reduce(
+    (sum, b) => sum + parseFloat(b.amount || 0),
+    0
+  );
+  const grandTotal = filteredBookings.reduce(
+    (sum, b) => sum + parseFloat(b.amount || 0),
+    0
+  );
+
+  // Print / PDF helpers (unchanged logic)
   const handlePrint = () => window.print();
 
-  // ✅ Print and PDF for Grand Total
   const handlePrintTotal = () => {
     const printWindow = window.open("", "_blank");
     printWindow.document.write(`
@@ -123,7 +194,7 @@ const Bookings = () => {
         <body>
           <h1>Hotel Grand Total Report</h1>
           <table>
-            <tr><th>Total Bookings</th><td>${bookings.length}</td></tr>
+            <tr><th>Total Bookings (filtered)</th><td>${filteredBookings.length}</td></tr>
             <tr><th>Grand Total Amount</th><td>₹${grandTotal.toFixed(2)}</td></tr>
           </table>
           <button class="print-btn" onclick="window.print()">🖨️ Print</button>
@@ -144,13 +215,24 @@ const Bookings = () => {
       theme: "grid",
       headStyles: { fillColor: [128, 0, 0] },
       body: [
-        ["Total Bookings", bookings.length.toString()],
+        ["Total Bookings (filtered)", filteredBookings.length.toString()],
         ["Grand Total Amount", `₹${grandTotal.toFixed(2)}`],
       ],
     });
 
     doc.save("Grand_Total_Report.pdf");
   };
+
+  // Clear filters
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFromDate("");
+    setToDate("");
+    setRoomFilter("");
+  };
+
+  // Get room options for dropdown
+  const roomOptions = getAllRooms();
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -166,11 +248,82 @@ const Bookings = () => {
             🖨️ Print All
           </button>
           <button
+            onClick={() => router.push("/payment")}
+            className="bg-[#1b426c] text-white px-4 py-2 rounded-lg hover:bg-[#20aaea] transition"
+          >
+            Payment Details
+          </button>
+          <button
             onClick={() => router.push("/")}
             className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition"
           >
             ← Back to Home
           </button>
+        </div>
+      </div>
+
+      {/* ---------------- Global Filter Bar (Option B) ---------------- */}
+      <div className="bg-white rounded-xl shadow p-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-end gap-3">
+          <div className="flex items-center gap-2 w-full md:w-1/3">
+            <label className="sr-only">Search</label>
+            <input
+              type="text"
+              placeholder="Search name, phone, room, amount..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full border px-4 py-2 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-1/4">
+            <label className="sr-only">From</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-full border px-3 py-2 rounded-lg"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-1/4">
+            <label className="sr-only">To</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-full border px-3 py-2 rounded-lg"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-1/6">
+            <select
+              value={roomFilter}
+              onChange={(e) => setRoomFilter(e.target.value)}
+              className="w-full border px-3 py-2 rounded-lg"
+            >
+              <option value="">All Rooms</option>
+              {roomOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-2 ml-auto">
+            <button
+              onClick={clearFilters}
+              className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-2 text-sm text-gray-600">
+          Showing <strong>{filteredBookings.length}</strong> result
+          {filteredBookings.length !== 1 ? "s" : ""} (filtered)
         </div>
       </div>
 
@@ -254,13 +407,18 @@ const NoData = ({ text }) => (
   <p className="text-center text-gray-500 italic">{text}</p>
 );
 
-// ✅ Paginated Table (unchanged)
+// ✅ Paginated Table (updated: reset to page 1 on bookings change)
 const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const totalPages = Math.ceil(bookings.length / itemsPerPage);
+  useEffect(() => {
+    // whenever bookings prop changes, reset to first page
+    setCurrentPage(1);
+  }, [bookings]);
+
+  const totalPages = Math.ceil(bookings.length / itemsPerPage) || 1;
   const currentBookings = bookings.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -386,16 +544,18 @@ const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
         <tbody>
           {currentBookings.map((b, i) => (
             <tr key={i} className="border-b hover:bg-gray-50">
-              <td className="px-4 py-2">{b.name}</td>
-              <td className="px-4 py-2">{b.phone_number}</td>
-              <td className="px-4 py-2">{getRoomDetails(b.selected_rooms)}</td>
-              <td className="px-4 py-2">{b.check_in_date}</td>
-              <td className="px-4 py-2">{b.check_in_time}</td>
-              <td className="px-4 py-2">{b.check_out_date}</td>
-              <td className="px-4 py-2 font-semibold text-green-700">
+              <td className="px-4 py-2 align-middle">{b.name}</td>
+              <td className="px-4 py-2 align-middle">{b.phone_number}</td>
+              <td className="px-4 py-2 align-middle">
+                {getRoomDetails(b.selected_rooms)}
+              </td>
+              <td className="px-4 py-2 align-middle">{b.check_in_date}</td>
+              <td className="px-4 py-2 align-middle">{b.check_in_time}</td>
+              <td className="px-4 py-2 align-middle">{b.check_out_date}</td>
+              <td className="px-4 py-2 font-semibold text-green-700 align-middle">
                 ₹{b.amount}
               </td>
-              <td className="px-4 py-2 text-center space-x-1">
+              <td className="px-4 py-2 text-center space-x-1 align-middle">
                 <button
                   onClick={() => router.push(`/bookingeditpage/${b.id}`)}
                   className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
@@ -431,11 +591,10 @@ const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
           <button
             onClick={handlePrev}
             disabled={currentPage === 1}
-            className={`px-3 py-1 rounded-lg border text-sm ${
-              currentPage === 1
+            className={`px-3 py-1 rounded-lg border text-sm ${currentPage === 1
                 ? "text-gray-400 border-gray-300 cursor-not-allowed"
                 : "text-gray-700 border-gray-400 hover:bg-gray-100"
-            }`}
+              }`}
           >
             Prev
           </button>
@@ -445,11 +604,10 @@ const PaginatedTable = ({ bookings, fetchBookings, getRoomDetails }) => {
           <button
             onClick={handleNext}
             disabled={currentPage === totalPages}
-            className={`px-3 py-1 rounded-lg border text-sm ${
-              currentPage === totalPages
+            className={`px-3 py-1 rounded-lg border text-sm ${currentPage === totalPages
                 ? "text-gray-400 border-gray-300 cursor-not-allowed"
                 : "text-gray-700 border-gray-400 hover:bg-gray-100"
-            }`}
+              }`}
           >
             Next
           </button>
