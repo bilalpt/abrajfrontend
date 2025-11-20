@@ -1,5 +1,3 @@
-// UPDATED FULL EDIT BOOKING PAGE WITH ROOM VALIDATION AND SAME UI AS FIRST FORM
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -53,7 +51,7 @@ const EditBookingPage = () => {
     }
   };
 
-  // Fetch All Bookings for Validation
+  // Fetch all bookings for checking room conflicts
   const fetchAllBookings = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/bookings/`);
@@ -64,42 +62,57 @@ const EditBookingPage = () => {
     }
   };
 
-  // Room already booked validation
+  // 🔍 CHECK IF ROOM EXISTS IN roomsData
+  const roomExists = (room) => {
+    room = room.trim();
+    for (let floor in roomsData) {
+      if (roomsData[floor][room]) return true;
+    }
+    return false;
+  };
+
+  // 🔍 CHECK IF ROOM ALREADY BOOKED
   const isRoomBooked = (room) => {
-  if (!booking) return false;
+    if (!booking) return false;
 
-  const newCheckIn = new Date(booking.check_in_date);
-  const newCheckOut = new Date(booking.check_out_date);
+    const newCheckIn = new Date(booking.check_in_date);
+    const newCheckOut = new Date(booking.check_out_date);
 
-  return allBookings.some((b) => {
-    if (b.id === booking.id) return false; // skip same booking
-    if (!b.selected_rooms) return false;
+    return allBookings.some((b) => {
+      if (b.id === booking.id) return false; // skip same booking
+      if (!b.selected_rooms) return false;
 
-    const rooms = b.selected_rooms.split(",").map((r) => r.trim());
-    if (!rooms.includes(room)) return false;
+      const rooms = b.selected_rooms.split(",").map((r) => r.trim());
+      if (!rooms.includes(room)) return false;
 
-    const existingCheckIn = new Date(b.check_in_date);
-    const existingCheckOut = new Date(b.check_out_date);
+      const existingCheckIn = new Date(b.check_in_date);
+      const existingCheckOut = new Date(b.check_out_date);
 
-    // DATE RANGE OVERLAP CHECK
-    const overlap =
-      newCheckIn < existingCheckOut && newCheckOut > existingCheckIn;
+      return newCheckIn < existingCheckOut && newCheckOut > existingCheckIn;
+    });
+  };
 
-    return overlap;
-  });
-};
-
+  // SAVE / UPDATE BOOKING
   const handleUpdate = async () => {
     if (!booking.name || !booking.phone_number || !booking.check_in_date) {
       setMessage("❌ All fields are required.");
       return;
     }
 
-    // VALIDATE ROOMS
+    // Convert rooms to array
     const selectedRooms = booking.selected_rooms
       ?.split(",")
       .map((r) => r.trim());
 
+    // 1️⃣ VALIDATE ROOM EXISTS
+    for (let room of selectedRooms) {
+      if (!roomExists(room)) {
+        setMessage(`❌ Room ${room} does not exist. Please enter a valid room.`);
+        return;
+      }
+    }
+
+    // 2️⃣ VALIDATE NOT BOOKED BY OTHERS
     for (let room of selectedRooms) {
       if (isRoomBooked(room)) {
         setMessage(`❌ Room ${room} is already booked for this date.`);
@@ -107,6 +120,7 @@ const EditBookingPage = () => {
       }
     }
 
+    // 3️⃣ UPDATE API CALL
     try {
       const res = await fetch(`${API_BASE}/api/bookings/${id}/`, {
         method: "PUT",
@@ -176,7 +190,9 @@ const EditBookingPage = () => {
           </div>
 
           <div>
-            <label className="font-medium">Selected Rooms (comma separated)</label>
+            <label className="font-medium">
+              Selected Rooms (comma separated)
+            </label>
             <input
               type="text"
               value={booking.selected_rooms}
@@ -216,7 +232,9 @@ const EditBookingPage = () => {
             <input
               type="number"
               value={booking.amount}
-              onChange={(e) => setBooking({ ...booking, amount: e.target.value })}
+              onChange={(e) =>
+                setBooking({ ...booking, amount: e.target.value })
+              }
               className="w-full bg-gray-100 p-3 rounded"
             />
           </div>
