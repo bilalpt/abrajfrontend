@@ -315,7 +315,7 @@ const Homepage = () => {
       </div>
 
       {/* RIGHT SIDE FORM */}
-      <div className="w-full md:w-1/3 bg-white p-6 rounded-xl shadow-md h-fit">
+      {/* <div className="w-full md:w-1/3 bg-white p-6 rounded-xl shadow-md h-fit">
         <h3 className="text-xl font-semibold border-b pb-3 mb-4">
           Your Selection
         </h3>
@@ -435,7 +435,7 @@ const Homepage = () => {
             {message}
           </p>
         )}
-      </div>
+      </div> */}
     </div>
   );
 };
