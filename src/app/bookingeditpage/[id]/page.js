@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 
 // const API_BASE = "https://abrajbackend.onrender.com";
 
-const API_BASE= one one
+const API_BASE= one 
 
 // ROOM DATA (same as booking form)
 const roomsData = {
