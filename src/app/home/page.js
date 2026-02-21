@@ -230,12 +230,11 @@ const Homepage = () => {
             <p className="font-semibold text-gray-600">Building</p>
           </div>
 
-          {/* <p
+          <p
             onClick={() => router.push("/bookings")}
             className="font-semibold text-gray-600 cursor-pointer hover:text-red-600"
           >
-            View Bookings
-          </p> */}
+          </p>
 
           <div className="flex items-center gap-2">
             <input
