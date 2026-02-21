@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-const API_BASE = "https://abrajbackend.onrender.com";
+// const API_BASE = "https://abrajbackend.onrender.com";
+const API_BASE=api
 
 // ROOM DATA (same as booking form)
 const roomsData = {
@@ -25,119 +26,119 @@ const roomsData = {
 };
 
 const EditBookingPage = () => {
-  // const { id } = useParams();
-  // const router = useRouter();
+  const { id } = useParams();
+  const router = useRouter();
 
-  // const [booking, setBooking] = useState(null);
-  // const [loading, setLoading] = useState(true);
-  // const [allBookings, setAllBookings] = useState([]);
-  // const [message, setMessage] = useState("");
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [allBookings, setAllBookings] = useState([]);
+  const [message, setMessage] = useState("");
 
-  // useEffect(() => {
-  //   fetchBooking();
-  //   fetchAllBookings();
-  // }, [id]);
+  useEffect(() => {
+    fetchBooking();
+    fetchAllBookings();
+  }, [id]);
 
-  // // Fetch Booking Details
-  // const fetchBooking = async () => {
-  //   try {
-  //     const res = await fetch(`${API_BASE}/api/bookings/${id}/`);
-  //     const data = await res.json();
-  //     setBooking(data);
-  //   } catch (error) {
-  //     console.error("Error loading booking:", error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+  // Fetch Booking Details
+  const fetchBooking = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/bookings/${id}/`);
+      const data = await res.json();
+      setBooking(data);
+    } catch (error) {
+      console.error("Error loading booking:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // // Fetch all bookings for checking room conflicts
-  // const fetchAllBookings = async () => {
-  //   try {
-  //     const res = await fetch(`${API_BASE}/api/bookings/`);
-  //     const data = await res.json();
-  //     setAllBookings(data);
-  //   } catch (error) {
-  //     console.error("Error fetching all bookings:", error);
-  //   }
-  // };
+  // Fetch all bookings for checking room conflicts
+  const fetchAllBookings = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/bookings/`);
+      const data = await res.json();
+      setAllBookings(data);
+    } catch (error) {
+      console.error("Error fetching all bookings:", error);
+    }
+  };
 
-  // // 🔍 CHECK IF ROOM EXISTS IN roomsData
-  // const roomExists = (room) => {
-  //   room = room.trim();
-  //   for (let floor in roomsData) {
-  //     if (roomsData[floor][room]) return true;
-  //   }
-  //   return false;
-  // };
+  // 🔍 CHECK IF ROOM EXISTS IN roomsData
+  const roomExists = (room) => {
+    room = room.trim();
+    for (let floor in roomsData) {
+      if (roomsData[floor][room]) return true;
+    }
+    return false;
+  };
 
-  // // 🔍 CHECK IF ROOM ALREADY BOOKED
-  // const isRoomBooked = (room) => {
-  //   if (!booking) return false;
+  // 🔍 CHECK IF ROOM ALREADY BOOKED
+  const isRoomBooked = (room) => {
+    if (!booking) return false;
 
-  //   const newCheckIn = new Date(booking.check_in_date);
-  //   const newCheckOut = new Date(booking.check_out_date);
+    const newCheckIn = new Date(booking.check_in_date);
+    const newCheckOut = new Date(booking.check_out_date);
 
-  //   return allBookings.some((b) => {
-  //     if (b.id === booking.id) return false; // skip same booking
-  //     if (!b.selected_rooms) return false;
+    return allBookings.some((b) => {
+      if (b.id === booking.id) return false; // skip same booking
+      if (!b.selected_rooms) return false;
 
-  //     const rooms = b.selected_rooms.split(",").map((r) => r.trim());
-  //     if (!rooms.includes(room)) return false;
+      const rooms = b.selected_rooms.split(",").map((r) => r.trim());
+      if (!rooms.includes(room)) return false;
 
-  //     const existingCheckIn = new Date(b.check_in_date);
-  //     const existingCheckOut = new Date(b.check_out_date);
+      const existingCheckIn = new Date(b.check_in_date);
+      const existingCheckOut = new Date(b.check_out_date);
 
-  //     return newCheckIn < existingCheckOut && newCheckOut > existingCheckIn;
-  //   });
-  // };
+      return newCheckIn < existingCheckOut && newCheckOut > existingCheckIn;
+    });
+  };
 
-  // // SAVE / UPDATE BOOKING
-  // const handleUpdate = async () => {
-  //   if (!booking.name || !booking.phone_number || !booking.check_in_date) {
-  //     setMessage("❌ All fields are required.");
-  //     return;
-  //   }
+  // SAVE / UPDATE BOOKING
+  const handleUpdate = async () => {
+    if (!booking.name || !booking.phone_number || !booking.check_in_date) {
+      setMessage("❌ All fields are required.");
+      return;
+    }
 
-  //   // Convert rooms to array
-  //   const selectedRooms = booking.selected_rooms
-  //     ?.split(",")
-  //     .map((r) => r.trim());
+    // Convert rooms to array
+    const selectedRooms = booking.selected_rooms
+      ?.split(",")
+      .map((r) => r.trim());
 
-  //   // 1️⃣ VALIDATE ROOM EXISTS
-  //   for (let room of selectedRooms) {
-  //     if (!roomExists(room)) {
-  //       setMessage(`❌ Room ${room} does not exist. Please enter a valid room.`);
-  //       return;
-  //     }
-  //   }
+    // 1️⃣ VALIDATE ROOM EXISTS
+    for (let room of selectedRooms) {
+      if (!roomExists(room)) {
+        setMessage(`❌ Room ${room} does not exist. Please enter a valid room.`);
+        return;
+      }
+    }
 
-  //   // 2️⃣ VALIDATE NOT BOOKED BY OTHERS
-  //   for (let room of selectedRooms) {
-  //     if (isRoomBooked(room)) {
-  //       setMessage(`❌ Room ${room} is already booked for this date.`);
-  //       return;
-  //     }
-  //   }
+    // 2️⃣ VALIDATE NOT BOOKED BY OTHERS
+    for (let room of selectedRooms) {
+      if (isRoomBooked(room)) {
+        setMessage(`❌ Room ${room} is already booked for this date.`);
+        return;
+      }
+    }
 
-  //   // 3️⃣ UPDATE API CALL
-  //   try {
-  //     const res = await fetch(`${API_BASE}/api/bookings/${id}/`, {
-  //       method: "PUT",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify(booking),
-  //     });
+    // 3️⃣ UPDATE API CALL
+    try {
+      const res = await fetch(`${API_BASE}/api/bookings/${id}/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(booking),
+      });
 
-  //     if (res.ok) {
-  //       setMessage("✅ Booking Updated Successfully!");
-  //       setTimeout(() => router.push("/bookings"), 1500);
-  //     } else {
-  //       setMessage("❌ Update Failed.");
-  //     }
-  //   } catch (err) {
-  //     setMessage("⚠️ Server Error");
-  //   }
-  // };
+      if (res.ok) {
+        setMessage("✅ Booking Updated Successfully!");
+        setTimeout(() => router.push("/bookings"), 1500);
+      } else {
+        setMessage("❌ Update Failed.");
+      }
+    } catch (err) {
+      setMessage("⚠️ Server Error");
+    }
+  };
 
   if (loading)
     return (
