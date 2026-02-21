@@ -3,8 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-// const API_BASE = "https://abrajbackend.onrender.com";
-const API_BASE=api
+const API_BASE = "https://abrajbackend.onrender.com";
 
 // ROOM DATA (same as booking form)
 const roomsData = {
